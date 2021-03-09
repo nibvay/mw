@@ -92,6 +92,13 @@ function Board({ row, column }) {
     [block, clickIndex],
   );
 
+  function restartGame() {
+    setClickIndex(null);
+    setIsFirstClicked(false);
+    setBlock([]);
+    setIsGameOver(false);
+  }
+
   useEffect(() => {
     if (!isFirstClicked || !Number.isInteger(clickIndex)) return;
     if (block.length === 0) {
@@ -121,20 +128,25 @@ function Board({ row, column }) {
   }, [clickedBlock]);
 
   return (
-    <div style={{ margin: 50 }}>
-      {[...Array(row).keys()].map((rowCount) =>
-        createOneRow(
-          rowCount,
-          column,
-          block,
-          setBlock,
-          isFirstClicked,
-          setIsFirstClicked,
-          setClickIndex,
-          isGameOver,
-        ),
-      )}
-    </div>
+    <>
+      <div style={{ margin: 50 }}>
+        {[...Array(row).keys()].map((rowCount) =>
+          createOneRow(
+            rowCount,
+            column,
+            block,
+            setBlock,
+            isFirstClicked,
+            setIsFirstClicked,
+            setClickIndex,
+            isGameOver,
+          ),
+        )}
+      </div>
+      <button style={{ margin: 50 }} onClick={restartGame}>
+        Restart Game
+      </button>
+    </>
   );
 }
 
