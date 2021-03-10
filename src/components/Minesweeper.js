@@ -1,4 +1,5 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
+import { getAdjacentIndex, usePrevious, intersection, getUniqueRandom } from './utils';
 
 const BOARD_SIZE = 8;
 const MINE_COUNT = 10;
@@ -103,7 +104,6 @@ function createOneRow(
 
 function getNewBlockWithState(block, clickCeil) {
   if (clickCeil.clickState === 2) {
-    console.log(block[clickCeil.ceilIndex]);
     block[clickCeil.ceilIndex].blockState = 'flag';
   } else {
     const autoOpenCeilIndexes = getAutoOpenCeilIndex(block, clickCeil.ceilIndex);
@@ -138,7 +138,7 @@ function Board({ row, column }) {
     if (!isFirstClicked || !Number.isInteger(clickCeil.ceilIndex)) return;
     if (block.length === 0) {
       /** First click */
-      console.log('first click ---> create mine');
+      // console.log('first click ---> create mine');
       const initialBlock = getInitialBlock(BOARD_SIZE, clickCeil.ceilIndex);
       const newBlock = getNewBlockWithState(initialBlock, clickCeil);
       setBlock(newBlock);
@@ -149,7 +149,7 @@ function Board({ row, column }) {
       const remainBlock = newBlock.filter((blockElement) => blockElement.blockState === 'closed');
       const remainBlockIndex = remainBlock.map(({ blockIndex }) => blockIndex);
       const diff = remainBlockIndex.filter((mineIndex) => !allMineIndexes.includes(mineIndex));
-      console.log({ remainBlockIndex, allMineIndexes, diff });
+      // console.log({ remainBlockIndex, allMineIndexes, diff });
 
       if (diff.length === 0) setGameStatus('win');
       setBlock(newBlock);
@@ -200,49 +200,6 @@ function Board({ row, column }) {
   );
 }
 
-function getAdjacentIndex(targetIndex, size) {
-  const inWhichColumn = targetIndex % size;
-  const inWhichRow = targetIndex / size;
-  const fullPositionValue = [
-    targetIndex - size - 1, // 0 leftTop
-    targetIndex - size, // 1 top
-    targetIndex - size + 1, // 2 rightTop
-    targetIndex - 1, // 3 left
-    targetIndex + 1, // 4 right
-    targetIndex + size - 1, // 5 leftBottom
-    targetIndex + size, // 6 bottom
-    targetIndex + size + 1, // 7 rightBottom
-  ];
-
-  if (inWhichColumn === 0) {
-    [0, 3, 5].map((noNeedPosition) => (fullPositionValue[noNeedPosition] = null));
-  }
-  if (inWhichColumn === size - 1) {
-    [2, 4, 7].map((notNeedPosition) => (fullPositionValue[notNeedPosition] = null));
-  }
-  if (inWhichRow === 0) {
-    [0, 1, 2].map((notNeedPosition) => (fullPositionValue[notNeedPosition] = null));
-  }
-  if (inWhichRow === size - 1) {
-    [5, 6, 7].map((notNeedPosition) => (fullPositionValue[notNeedPosition] = null));
-  }
-
-  return fullPositionValue.filter(
-    (positionValue) => positionValue !== null && positionValue < size * size && positionValue > -1,
-  );
-}
-
-function getUniqueRandom(count, max, excludeValue) {
-  const uniqueNumber = new Set();
-  while (uniqueNumber.size !== count) {
-    const number = Math.floor(Math.random() * max);
-    if (number !== excludeValue) {
-      uniqueNumber.add(number);
-    }
-  }
-  return [...uniqueNumber];
-}
-
 function getInitialBlock(size, clickedIndex) {
   const mineIndexes = getUniqueRandom(MINE_COUNT, size * size, clickedIndex);
   const blocks = [...Array(size * size).keys()].map((index) => {
@@ -257,22 +214,8 @@ function getInitialBlock(size, clickedIndex) {
   return blocks;
 }
 
-function intersection(arrayA, arrayB) {
-  return arrayA.filter((value) => arrayB.includes(value));
-}
-
 function Minesweeper() {
   return <Board row={BOARD_SIZE} column={BOARD_SIZE} />;
 }
 
 export default Minesweeper;
-
-function usePrevious(value) {
-  const ref = useRef();
-
-  useEffect(() => {
-    ref.current = value;
-  }, [value]);
-
-  return ref.current;
-}
