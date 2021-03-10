@@ -21,16 +21,11 @@ function getAutoOpenCeilIndex(block, clickIndex) {
   }
 }
 
-function Ceil({ value, isFirstClicked, block, setBlock, setIsFirstClicked, setClickIndex, isGameOver }) {
+function Ceil({ value, isFirstClicked, block, setIsFirstClicked, clickIndex, setClickIndex, isGameOver }) {
   const blockState = block?.[value]?.blockState ?? '';
   const aroundMines = block?.[value]?.aroundMines ?? '';
-
-  function handleOnClick() {
-    if (!isFirstClicked) {
-      setIsFirstClicked(true);
-    }
-    setClickIndex(value);
-  }
+  const isOpenedCeil = blockState === 'open' && aroundMines >= 0;
+  const isMine = blockState === 'open' && aroundMines === -1;
 
   return (
     <div
@@ -38,17 +33,30 @@ function Ceil({ value, isFirstClicked, block, setBlock, setIsFirstClicked, setCl
       style={{
         width: 40,
         height: 40,
-        border: '#818f9c 1px solid',
-        backgroundColor: isGameOver ? '#ff0000' : '#b1cbe3',
+        textAlign: 'center',
+        border: '#818f9c 2px solid',
+        backgroundColor: '#b1cbe3',
       }}
       onClick={() => {
-        handleOnClick();
+        if (isGameOver) return;
+        if (!isFirstClicked) setIsFirstClicked(true);
+        setClickIndex(value);
       }}
     >
-      <div style={{ fontWeight: 700, color: '#ff0000' }}>
-        {/* {value} */}
-        {blockState === 'open' ? aroundMines : ''}
-      </div>
+      {isOpenedCeil && <OpenedCeil aroundMines={aroundMines} />}
+      {isMine && <MineCeil isMineInCurrentCeil={clickIndex === value} />}
+    </div>
+  );
+}
+
+function OpenedCeil({ aroundMines }) {
+  return <div style={{ fontWeight: 700 }}>{aroundMines}</div>;
+}
+
+function MineCeil({ isMineInCurrentCeil }) {
+  return (
+    <div style={{ width: 40, height: 40, backgroundColor: isMineInCurrentCeil ? '#ff0000' : '#b1cbe3' }}>
+      {'＊'}
     </div>
   );
 }
@@ -57,10 +65,10 @@ function createOneRow(
   rowCount,
   elementInOneRow,
   block,
-  setBlock,
   isFirstClicked,
   setIsFirstClicked,
   setClickIndex,
+  clickIndex,
   isGameOver,
 ) {
   return (
@@ -69,9 +77,9 @@ function createOneRow(
         <Ceil
           value={count + rowCount * elementInOneRow}
           isFirstClicked={isFirstClicked}
-          setBlock={setBlock}
           block={block}
           setIsFirstClicked={setIsFirstClicked}
+          clickIndex={clickIndex}
           setClickIndex={setClickIndex}
           isGameOver={isGameOver}
         />
@@ -122,10 +130,18 @@ function Board({ row, column }) {
   }, [block, clickIndex, clickedBlock, isFirstClicked, prevClickIndex]);
 
   useEffect(() => {
+    if (isGameOver) return;
     if (clickedBlock?.aroundMines === -1) {
       setIsGameOver(true);
+
+      /** Set all mines blockState to open */
+      const allMinesWithOpen = block.map((blockElement) => {
+        if (blockElement.aroundMines === -1) blockElement.blockState = 'open';
+        return blockElement;
+      });
+      setBlock(allMinesWithOpen);
     }
-  }, [clickedBlock]);
+  }, [block, clickedBlock, isGameOver]);
 
   return (
     <>
@@ -135,10 +151,10 @@ function Board({ row, column }) {
             rowCount,
             column,
             block,
-            setBlock,
             isFirstClicked,
             setIsFirstClicked,
             setClickIndex,
+            clickIndex,
             isGameOver,
           ),
         )}
@@ -219,15 +235,11 @@ function Minesweeper() {
 export default Minesweeper;
 
 function usePrevious(value) {
-  // The ref object is a generic container whose current property is mutable ...
-  // ... and can hold any value, similar to an instance property on a class
   const ref = useRef();
 
-  // Store current value in ref
   useEffect(() => {
     ref.current = value;
-  }, [value]); // Only re-run if value changes
+  }, [value]);
 
-  // Return previous value (happens before update in useEffect above)
   return ref.current;
 }
