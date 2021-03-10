@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { getAdjacentIndex, usePrevious, intersection, getUniqueRandom } from './utils';
 
+/** Game Setting */
 const BOARD_SIZE = 8;
 const MINE_COUNT = 10;
 
@@ -200,6 +201,7 @@ function Board({ row, column }) {
   );
 }
 
+/** After first clicked, we could add mines. */
 function getInitialBlock(size, clickedIndex) {
   const mineIndexes = getUniqueRandom(MINE_COUNT, size * size, clickedIndex);
   const blocks = [...Array(size * size).keys()].map((index) => {
