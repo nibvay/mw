@@ -9,7 +9,7 @@ function getAutoOpenCeilIndex(block, clickIndex) {
 
   function openCeil(index) {
     const ceil = blockWithWalked[index];
-    if (ceil.walked || ceil.aroundMines < 0) return [];
+    if (ceil.walked || ceil.aroundMines < 0 || ceil.blockState === 'flag') return [];
     ceil.walked = true;
     if (ceil.aroundMines > 0) return [index];
     return [
@@ -21,11 +21,21 @@ function getAutoOpenCeilIndex(block, clickIndex) {
   }
 }
 
-function Ceil({ value, isFirstClicked, block, setIsFirstClicked, clickIndex, setClickIndex, isGameOver }) {
+function Ceil({ value, isFirstClicked, block, setIsFirstClicked, clickCeil, setClickCeil, gameStatus }) {
   const blockState = block?.[value]?.blockState ?? '';
   const aroundMines = block?.[value]?.aroundMines ?? '';
   const isOpenedCeil = blockState === 'open' && aroundMines >= 0;
   const isMine = blockState === 'open' && aroundMines === -1;
+  const isFlag = blockState === 'flag';
+
+  function handleOnMouseDown(event) {
+    event.preventDefault();
+    if (gameStatus === 'win' || gameStatus === 'boom') return;
+    if (!isFirstClicked) setIsFirstClicked(true);
+
+    /** clickState: 1(left click), 2(right click) */
+    setClickCeil({ ceilIndex: value, clickState: event.buttons });
+  }
 
   return (
     <div
@@ -37,16 +47,19 @@ function Ceil({ value, isFirstClicked, block, setIsFirstClicked, clickIndex, set
         border: '#818f9c 2px solid',
         backgroundColor: '#b1cbe3',
       }}
-      onClick={() => {
-        if (isGameOver) return;
-        if (!isFirstClicked) setIsFirstClicked(true);
-        setClickIndex(value);
-      }}
+      onContextMenu={(event) => event.preventDefault()}
+      onMouseDown={handleOnMouseDown}
     >
       {isOpenedCeil && <OpenedCeil aroundMines={aroundMines} />}
-      {isMine && <MineCeil isMineInCurrentCeil={clickIndex === value} />}
+      {isMine && <MineCeil isMineInCurrentCeil={clickCeil.ceilIndex === value} />}
+      {isFlag && <FlagCeil />}
+      {/* {aroundMines} */}
     </div>
   );
+}
+
+function FlagCeil() {
+  return <div style={{ fontWeight: 700 }}>{'🚩'}</div>;
 }
 
 function OpenedCeil({ aroundMines }) {
@@ -56,7 +69,7 @@ function OpenedCeil({ aroundMines }) {
 function MineCeil({ isMineInCurrentCeil }) {
   return (
     <div style={{ width: 40, height: 40, backgroundColor: isMineInCurrentCeil ? '#ff0000' : '#b1cbe3' }}>
-      {'＊'}
+      {'💣'}
     </div>
   );
 }
@@ -67,9 +80,9 @@ function createOneRow(
   block,
   isFirstClicked,
   setIsFirstClicked,
-  setClickIndex,
-  clickIndex,
-  isGameOver,
+  setClickCeil,
+  clickCeil,
+  gameStatus,
 ) {
   return (
     <div style={{ display: 'flex' }}>
@@ -79,60 +92,80 @@ function createOneRow(
           isFirstClicked={isFirstClicked}
           block={block}
           setIsFirstClicked={setIsFirstClicked}
-          clickIndex={clickIndex}
-          setClickIndex={setClickIndex}
-          isGameOver={isGameOver}
+          clickCeil={clickCeil}
+          setClickCeil={setClickCeil}
+          gameStatus={gameStatus}
         />
       ))}
     </div>
   );
 }
 
+function getNewBlockWithState(block, clickCeil) {
+  if (clickCeil.clickState === 2) {
+    console.log(block[clickCeil.ceilIndex]);
+    block[clickCeil.ceilIndex].blockState = 'flag';
+  } else {
+    const autoOpenCeilIndexes = getAutoOpenCeilIndex(block, clickCeil.ceilIndex);
+    autoOpenCeilIndexes.forEach((ceilIndex) => {
+      const ceil = block[ceilIndex];
+      block[ceilIndex] = { ...ceil, blockState: 'open' };
+    });
+  }
+  return block;
+}
+
 function Board({ row, column }) {
   const [isFirstClicked, setIsFirstClicked] = useState(false);
-  const [clickIndex, setClickIndex] = useState(null);
+  const [clickCeil, setClickCeil] = useState({ ceilIndex: null, clickState: null });
   const [block, setBlock] = useState([]);
-  const prevClickIndex = usePrevious(clickIndex);
-  const [isGameOver, setIsGameOver] = useState(false);
-
-  const clickedBlock = useMemo(
-    () => (block.length === 0 ? null : block.find(({ blockIndex }) => blockIndex === clickIndex)),
-    [block, clickIndex],
-  );
+  const prevClickCeilIndex = usePrevious(clickCeil.ceilIndex);
+  const [gameStatus, setGameStatus] = useState('progress'); // progress, boom, win
 
   function restartGame() {
-    setClickIndex(null);
+    setClickCeil({ ceilIndex: null, clickState: null });
     setIsFirstClicked(false);
     setBlock([]);
-    setIsGameOver(false);
+    setGameStatus('progress');
   }
 
-  useEffect(() => {
-    if (!isFirstClicked || !Number.isInteger(clickIndex)) return;
-    if (block.length === 0) {
-      console.log('first click ---> create mine');
-      const initialBlock = getInitialBlock(BOARD_SIZE, clickIndex);
-      const autoOpenCeilIndexes = getAutoOpenCeilIndex(initialBlock, clickIndex);
-      autoOpenCeilIndexes.forEach((ceilIndex) => {
-        const ceil = initialBlock[ceilIndex];
-        initialBlock[ceilIndex] = { ...ceil, blockState: 'open' };
-      });
-      setBlock(initialBlock);
-    } else if (prevClickIndex !== clickIndex) {
-      const cloneBlock = [...block];
-      const autoOpenCeilIndexes = getAutoOpenCeilIndex(cloneBlock, clickIndex);
-      autoOpenCeilIndexes.forEach((ceilIndex) => {
-        const ceil = cloneBlock[ceilIndex];
-        cloneBlock[ceilIndex] = { ...ceil, blockState: 'open' };
-      });
-      setBlock(cloneBlock);
-    }
-  }, [block, clickIndex, clickedBlock, isFirstClicked, prevClickIndex]);
+  const allMineIndexes = useMemo(
+    () => block.filter((blockElement) => blockElement.aroundMines === -1).map(({ blockIndex }) => blockIndex),
+    [block],
+  );
 
   useEffect(() => {
-    if (isGameOver) return;
+    if (!isFirstClicked || !Number.isInteger(clickCeil.ceilIndex)) return;
+    if (block.length === 0) {
+      /** First click */
+      console.log('first click ---> create mine');
+      const initialBlock = getInitialBlock(BOARD_SIZE, clickCeil.ceilIndex);
+      const newBlock = getNewBlockWithState(initialBlock, clickCeil);
+      setBlock(newBlock);
+    } else if (prevClickCeilIndex !== clickCeil.ceilIndex) {
+      const cloneBlock = [...block];
+      const newBlock = getNewBlockWithState(cloneBlock, clickCeil);
+
+      const remainBlock = newBlock.filter((blockElement) => blockElement.blockState === 'closed');
+      const remainBlockIndex = remainBlock.map(({ blockIndex }) => blockIndex);
+      const diff = remainBlockIndex.filter((mineIndex) => !allMineIndexes.includes(mineIndex));
+      console.log({ remainBlockIndex, allMineIndexes, diff });
+
+      if (diff.length === 0) setGameStatus('win');
+      setBlock(newBlock);
+    }
+  }, [allMineIndexes, block, clickCeil, isFirstClicked, prevClickCeilIndex]);
+
+  const clickedBlock = useMemo(
+    () => (block.length === 0 ? null : block.find(({ blockIndex }) => blockIndex === clickCeil.ceilIndex)),
+    [block, clickCeil.ceilIndex],
+  );
+
+  useEffect(() => {
+    if (gameStatus === 'boom') return;
+    if (clickedBlock?.blockState === 'flag') return;
     if (clickedBlock?.aroundMines === -1) {
-      setIsGameOver(true);
+      setGameStatus('boom');
 
       /** Set all mines blockState to open */
       const allMinesWithOpen = block.map((blockElement) => {
@@ -141,7 +174,7 @@ function Board({ row, column }) {
       });
       setBlock(allMinesWithOpen);
     }
-  }, [block, clickedBlock, isGameOver]);
+  }, [block, clickedBlock, gameStatus]);
 
   return (
     <>
@@ -153,15 +186,16 @@ function Board({ row, column }) {
             block,
             isFirstClicked,
             setIsFirstClicked,
-            setClickIndex,
-            clickIndex,
-            isGameOver,
+            setClickCeil,
+            clickCeil,
+            gameStatus,
           ),
         )}
       </div>
       <button style={{ margin: 50 }} onClick={restartGame}>
         Restart Game
       </button>
+      {gameStatus === 'win' && <div style={{ margin: 50 }}>🎉win🎉</div>}
     </>
   );
 }
@@ -211,7 +245,6 @@ function getUniqueRandom(count, max, excludeValue) {
 
 function getInitialBlock(size, clickedIndex) {
   const mineIndexes = getUniqueRandom(MINE_COUNT, size * size, clickedIndex);
-  console.log({ mineIndexes });
   const blocks = [...Array(size * size).keys()].map((index) => {
     const isMine = mineIndexes.includes(index);
     return {
